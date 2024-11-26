@@ -26,6 +26,14 @@
         <button @click="sendMessage">Send</button>
         <button @click="resetChat" class="reset-button">Reset</button>
       </div>
+      <div class="system-message-input">
+        <textarea
+          v-model="systemMessage"
+          placeholder="Enter custom system message..."
+          rows="1"
+        ></textarea>
+        <button @click="updateSystemMessage">Update System Message</button>
+      </div>
     </div>
     <div class="editor-container">
       <CodeEditor :code="currentCode" :language="currentLanguage" />
@@ -49,12 +57,17 @@ export default {
       currentCode: '',
       currentLanguage: 'python',
       chatWidth: 500,
+      systemMessage: '',
     };
   },
   created() {
     const savedMessages = localStorage.getItem('chatMessages');
     if (savedMessages) {
       this.messages = JSON.parse(savedMessages);
+    }
+    const savedSystemMessage = localStorage.getItem('systemMessage');
+    if (savedSystemMessage) {
+      this.systemMessage = savedSystemMessage;
     }
   },
   watch: {
@@ -63,6 +76,9 @@ export default {
         localStorage.setItem('chatMessages', JSON.stringify(newMessages));
       },
       deep: true,
+    },
+    systemMessage(newMessage) {
+      localStorage.setItem('systemMessage', newMessage);
     },
   },
   methods: {
@@ -82,7 +98,7 @@ export default {
             headers: {
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ text: userText }),
+            body: JSON.stringify({ text: userText, systemMessage: this.systemMessage }),
           });
 
           const data = await response.json();
@@ -115,6 +131,9 @@ export default {
       } catch (error) {
         console.error('Error resetting chat:', error);
       }
+    },
+    updateSystemMessage() {
+      localStorage.setItem('systemMessage', this.systemMessage);
     },
   },
 };
@@ -283,5 +302,58 @@ export default {
   padding: 10px;
   border-radius: 5px;
   overflow-x: auto;
+}
+
+.system-message-input {
+  padding: 10px;
+  display: flex;
+  background-color: #2d2d2d;
+  flex-direction: column;
+}
+
+.system-message-input textarea {
+  margin-bottom: 10px;
+  padding: 10px;
+  border: none;
+  border-radius: 5px;
+  background-color: #3a3a3a;
+  color: #ffffff;
+  resize: none;
+  overflow-y: auto;
+  height: auto;
+  max-height: 100px;
+  scrollbar-width: thin;
+  scrollbar-color: #3a3a3a #2d2d2d;
+}
+
+.system-message-input textarea::-webkit-scrollbar {
+  width: 8px;
+}
+
+.system-message-input textarea::-webkit-scrollbar-track {
+  background-color: #2d2d2d;
+}
+
+.system-message-input textarea::-webkit-scrollbar-thumb {
+  background-color: #3a3a3a;
+  border-radius: 4px;
+}
+
+.system-message-input button {
+  padding: 10px 15px;
+  background-color: #007bff;
+  border: none;
+  border-radius: 5px;
+  color: #ffffff;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.system-message-input button:hover {
+  background-color: #0056b3;
+}
+
+.system-message-input button:active {
+  background-color: #004085;
 }
 </style>

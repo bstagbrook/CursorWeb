@@ -146,12 +146,12 @@ def markdown_codeblock_extract(response):
     code = ""
     in_codeblock = False
     for ln in lines:
-        if ln.startswith("```"):
-            if in_codeblock:
+        if (ln.startswith("```")):
+            if (in_codeblock):
                 break
             else:
                 in_codeblock = True
-        elif in_codeblock:
+        elif (in_codeblock):
             code += ln + "\n"
     return code
 
@@ -175,7 +175,7 @@ def if_continuous_modify(code1, code2, code3):
     dist3 = Levenshtein.distance(code1, code3)
 
     # Check if code3 is a continuous modification of code1 and code2
-    if dist3 == dist1 + dist2:
+    if (dist3 == dist1 + dist2):
         return True
     else:
         return False
@@ -203,7 +203,7 @@ def blockwise_if_continuous_modify(code1, code2, code3):
     new_diff_blocks = generate_diff_blocks(code1, code3)
     
     # Check if code3 is a continuous modification of code1 and code2
-    if dist3 == dist1 + dist2 and len(past_diff_blocks) == len(new_diff_blocks):
+    if (dist3 == dist1 + dist2 and len(past_diff_blocks) == len(new_diff_blocks)):
         return True
     else:
         return False
@@ -233,14 +233,14 @@ def generate_diff_blocks(original, modified):
 
     # Traverse the diff results into chunks
     for line in diff:
-        if line.startswith('  '):
+        if (line.startswith('  ')):
             # If the current block has content and an unmodified line is encountered, save the current block and reset
-            if current_block:
+            if (current_block):
                 blocks.append((current_block, orig_line_no - block_line_len))
                 current_block = []
                 block_line_len = 0
             orig_line_no += 1
-        elif line.startswith('- '):
+        elif (line.startswith('- ')):
             current_block.append(line)
             orig_line_no += 1
             block_line_len += 1
@@ -248,7 +248,42 @@ def generate_diff_blocks(original, modified):
             current_block.append(line)
     
     # Make sure the last chunk is added
-    if current_block:
+    if (current_block):
         blocks.append((current_block, orig_line_no - block_line_len))
     
     return blocks
+
+def extract_log_part(command, lines_to_include):
+    """
+    Extracts a part of the terminal log starting from the line containing the command.
+
+    Args:
+        command (str): The command to search for in the log.
+        lines_to_include (int): The number of lines to include after the command.
+
+    Returns:
+        list: A list of lines from the terminal log starting from the command.
+    """
+    with open('terminal.log', 'r') as log_file:
+        terminal_log = log_file.readlines()
+
+    last_executed_index = next((i for i, line in enumerate(terminal_log) if command in line), None)
+    if last_executed_index is not None:
+        return terminal_log[last_executed_index:last_executed_index + lines_to_include]
+    else:
+        return []
+
+def extract_last_lines(last_lines):
+    """
+    Extracts the last lines from the terminal log.
+
+    Args:
+        last_lines (int): The number of lines to extract from the end of the log.
+
+    Returns:
+        list: A list of the last lines from the terminal log.
+    """
+    with open('terminal.log', 'r') as log_file:
+        terminal_log = log_file.readlines()
+
+    return terminal_log[-last_lines:]

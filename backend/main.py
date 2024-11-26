@@ -1,12 +1,16 @@
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from special_tokens import *
-from utils import decorate_code, postprocess_output_wf, blockwise_if_continuous_modify
+from utils import decorate_code, postprocess_output_wf, blockwise_if_continuous_modify, extract_log_part, extract_last_lines
 import json
 import uvicorn
 import argparse
 import requests
+import subprocess
+import logging
+from terminal_logger import TerminalLogger
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--model_map", type=str, help="Model name, base and port")
@@ -18,6 +22,12 @@ parser.add_argument("--top_p", type=float, default=1.0, help="Top-p sampling")
 parser.add_argument("--frequency_penalty", type=float, default=0, help="Frequency penalty")
 parser.add_argument("--presence_penalty", type=float, default=0, help="Presence penalty")
 args = parser.parse_args()
+
+HF_INFERENCE_BASE = os.getenv('HF_INFERENCE_BASE', 'https://glhf.chat/api/openali/v1')
+MODEL_CARD_LLAMA_3_1_70B_INSTRUCT = os.getenv('MODEL_CARD_LLAMA_3_1_70B_INSTRUCT', 'hf:meta-llama/llama-3.1-405b-Instuct')
+HF_INFERENCE_CHAT_COMPLETIONS = os.getenv('HF_INFERENCE_CHAT_COMPLETIONS', 'chat/completions')
+
+api_endpoint = f"{HF_INFERENCE_BASE}/{MODEL_CARD_LLAMA_3_1_70B_INSTRUCT}/{HF_INFERENCE_CHAT_COMPLETIONS}"
 
 with open(args.model_map, "r") as f:
     model_map = json.load(f)
@@ -98,6 +108,35 @@ async def chat(message: ChatMessage):
         assistant = "Sorry, there was an error processing your request."
 
     chat_conversation.append({'role': 'assistant', 'content': assistant.rstrip()})
+
+    # Execute the assistant's response in a separate string
+    command = assistant.rstrip()
+    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE)
+    stdout, stderr = process.communicate()
+
+    # Log all terminal output to terminal.log
+    terminal_logger = TerminalLogger()
+    terminal_logger.start_logging()
+    terminal_logger.write(stdout.decode())
+    terminal_logger.write(stderr.decode())
+    terminal_logger.stop_logging()
+
+    # Include specified messages with each chat completion
+    with open('config.json', 'r') as config_file:
+        config = json.load(config_file)
+    lines_to_include = config.get('lines_to_include', 10)
+    last_lines = config.get('last_lines', 10)
+
+    part_of_log = extract_log_part(command, lines_to_include)
+    last_part_of_log = extract_last_lines(last_lines)
+
+    custom_system_message = "This is a custom system message."
+
+    assistant += "\n\n" + "The entirety of each of the model's messages are executed directly in a terminal, and there's no human on the other end. Expect the following:\n"
+    assistant += "\n".join(part_of_log)
+    assistant += "\n".join(last_part_of_log)
+    assistant += "\n" + custom_system_message
+
     return {"assistant": assistant.rstrip()}
 
 @app.post("/api/tab")
@@ -146,8 +185,6 @@ async def tab(request: CodeRequest):
                 current = history_current[-1][:request.area[0]] + TARGET_START + history_current[-1][request.area[0]:request.area[1]] + TARGET_END + history_current[-1][request.area[1]:]
         except:
             current = history_current[-1]
-    else:
-        current = history_current[-1]
 
     # TODO: support others modification types like Location-and-Change and Search-and-Replace
     if args.sliding_window > 0:
